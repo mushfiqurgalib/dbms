@@ -4,6 +4,7 @@ from csv import reader
 
 # Load a CSV file
 
+
 def load_csv(filename):
     file = open(filename, "rt")
     lines = reader(file)
@@ -12,11 +13,13 @@ def load_csv(filename):
 
 # Convert string column to float
 
+
 def str_column_to_float(dataset, column):
     for row in dataset:
         row[column] = float(row[column].strip())
 
 # Split a dataset into k folds
+
 
 def cross_validation_split(dataset, n_folds):
     dataset_split = list()
@@ -32,6 +35,7 @@ def cross_validation_split(dataset, n_folds):
 
 # Calculate accuracy percentage
 
+
 def accuracy_metric(actual, predicted):
     correct = 0
     for i in range(len(actual)):
@@ -41,7 +45,8 @@ def accuracy_metric(actual, predicted):
 
 # Evaluate an algorithm using a cross validation split
 
-def evaluate_algorithm(dataset, n_folds):
+
+def evaluate_algorithm(dataset, algorithm, n_folds):
     folds = cross_validation_split(dataset, n_folds)
     scores = list()
     for fold in folds:
@@ -49,13 +54,14 @@ def evaluate_algorithm(dataset, n_folds):
         train_set.remove(fold)
         train_set = sum(train_set, [])
         test_set = list(fold)
-        predicted = decision_tree(train_set, test_set)
+        predicted = algorithm(train_set, test_set)
         actual = [row[feature_index] for row in fold]
         accuracy = accuracy_metric(actual, predicted)
         scores.append(accuracy)
     return scores
 
 # Split a dataset based on an attribute and an attribute value
+
 
 def test_split(index, value, dataset):
     left, right = list(), list()
@@ -67,6 +73,7 @@ def test_split(index, value, dataset):
     return left, right
 
 # Calculate the Gini index for a split dataset
+
 
 def gini_index(groups, classes):
     # count all samples at split point
@@ -89,25 +96,29 @@ def gini_index(groups, classes):
 
 # Select the best split point for a dataset
 
+
 def get_split(dataset):
     class_values = list(set(row[feature_index] for row in dataset))
     b_index, b_value, b_score, b_groups = 9999999, 9999999, 9999999, None
     for index in range(len(dataset[0])):
         if index == feature_index:
             continue
-        for row in dataset:
-            groups = test_split(index, row[index], dataset)
-            gini = gini_index(groups, class_values)
-            if gini < b_score:
-                b_index, b_value, b_score, b_groups = index, row[index], gini, groups
-    return {'index': b_index, 'value': b_value, 'groups': b_groups}
+        row_index = [row[index] for row in dataset]
+        mean_val = sum(row_index)/len(row_index)
+        groups = test_split(index, mean_val, dataset)
+        gini = gini_index(groups, class_values)
+        if gini < b_score:
+            b_index, b_value, b_score, b_groups = index, mean_val, gini, groups
+    return {'index': b_index, 'value': b_value, 'num': len(b_groups[0]+b_groups[1]), 'groups': b_groups}
 
 # Create a terminal node value
+
 
 def to_terminal(group):
     return group[0][feature_index]
 
 # Create child splits for a node or make terminal
+
 
 def split(node):
     left, right = node['groups']
@@ -125,12 +136,14 @@ def split(node):
 
 # Build a decision tree
 
+
 def build_tree(train):
     root = get_split(train)
     split(root)
     return root
 
 # Make a prediction with a decision tree
+
 
 def predict(node, row):
     if row[node['index']] < node['value']:
@@ -144,33 +157,53 @@ def predict(node, row):
         else:
             return node['right']
 
+
+def print_tree(node, depth):
+    if not isinstance(node['right'], dict):
+        for _ in range(depth+1):
+            print(' ', end='')
+        print('class:%s' % node['right'])
+        return
+
+    depth += 8
+    if isinstance(node['left'], dict):
+        print_tree(node['left'], depth)
+
+    for _ in range(depth):
+        print(' ', end='')
+    print('ind = %2.0f' % node['index'], end=',')
+    print('val = %2.3f' % node['value'], end=',')
+    print('num = %2.0f' % node['num'])
+
+    if isinstance(node['right'], dict):
+        print_tree(node['right'], depth)
+
+
 # Classification and Regression Tree Algorithm
 
 def decision_tree(train, test):
     tree = build_tree(train)
+    print("TREE")
+    print_tree(tree, -9)
     predictions = list()
     for row in test:
         prediction = predict(tree, row)
         predictions.append(prediction)
     return(predictions)
 
+
 seed(1)
 # load and prepare data
 filename = 'wine.csv'
 dataset = load_csv(filename)
 # convert string attributes to integers
-for i in range(len(dataset[0])-1):
+for i in range(len(dataset[0])):
     str_column_to_float(dataset, i)
 
-# evaluate algorithm
+
 n_folds = 10
 
-'''
-feature index in 0 is indicate the class name
-
-
-'''
 feature_index = 0
-scores = evaluate_algorithm(dataset, n_folds)
+scores = evaluate_algorithm(dataset, decision_tree, n_folds)
 print('Scores: %s' % scores)
 print('Mean Accuracy: %.3f%%' % (sum(scores)/float(len(scores))))
